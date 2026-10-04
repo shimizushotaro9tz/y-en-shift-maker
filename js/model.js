@@ -32,7 +32,7 @@
   const W = {
     HARD: 1000,
     WISH: 400, // 希望休。休日の3人勤務（THREE）より優先する
-    OFF_BALANCE: 60, // 公休数を自動で均等にするとき、平均からのずれ（2乗）
+    OFF_BALANCE: 20, // 公休数を自動で均等にするとき、平均からのずれ（2乗）
     RUN: [0, 30, 0, 0, 5, 30], // 連勤の長さごとの罰点（1日だけの勤務・5連勤を避け、2〜3連勤を中心に）
     RUN_OVER: 30,
     LONG_REST: 15, // 5連休以上の1日あたり
@@ -40,6 +40,7 @@
     FAIR_NIGHT: 10,
     NIGHT_GAP: 4, // 宿直の間隔が目安より短いとき、足りない日数の2乗あたり
     THREE: 300, // 休日の3人勤務（やむを得ない場合だけ）
+    EXTRA_MISS: 35, // 職員が多い月に、追加してよい勤務（D）を追加しなかった1人・1日あたり（休みの理想 REST_IDEAL より小さくする）
     NIGHT_GAP2: 80, // 中1日の宿直（DE→EA→DE のように、明けの翌日にまた宿直入り）。優先度高め
     FAIR_CODE: 3,
     FAIR_WEEKEND: 3,
@@ -275,45 +276,20 @@
     return !(x.leave && !x.work && x.night === 'none');
   }
 
-  // 職員が基本の人数を超えたときに、毎日増やす勤務と人数。
-  // 超えた人数分を増やすが、休み（公休＋有休）の平均が下限を下回らない範囲にとどめる
-  const extraCache = new Map();
+  // 職員が基本の人数を超えたときに、追加してよい勤務と1日あたりの人数（超えた人数分まで）。
+  // 毎日必ず増やすのではなく、休みの理想の日数を確保できる日にだけ増やす（計算で選ぶ）
   function extraDemand(state) {
     const r = state.rules;
     const code = r.extraCode;
     const over = Math.max(0, state.staff.length - (Number(r.baseStaff) || 0));
     const x = state.shifts.find((y) => y.code === code);
     if (!over || !x || !isDemandShift(state, x)) return { code, n: 0, over };
-    const key = JSON.stringify([state.year, state.month, state.staff.length, code, r.minRest, state.demand, state.dayTypeOverrides, state.shifts.map((y) => [y.code, y.off, y.leave])]);
-    if (extraCache.has(key)) return extraCache.get(key);
-    const cal = buildCalendar(state);
-    const S = state.staff.length;
-    const restAvg = (k) => {
-      let rest = 0;
-      for (const c of cal) {
-        let sum = k, restCoded = 0;
-        for (const y of state.shifts) {
-          if (!isDemandShift(state, y)) continue;
-          const v = Number((state.demand[c.type] || {})[y.code]) || 0;
-          sum += v;
-          if (y.off || y.leave) restCoded += v;
-        }
-        rest += S - sum + restCoded;
-      }
-      return rest / S;
-    };
-    let n = over;
-    while (n > 0 && restAvg(n) < (Number(r.minRest) || 0)) n--;
-    const res = { code, n, over };
-    if (extraCache.size > 50) extraCache.clear();
-    extraCache.set(key, res);
-    return res;
+    return { code, n: over, over };
   }
 
-  // 基本の人数（平日・休日の人数に、職員が多いときの追加分を足したもの）
+  // 基本の人数（平日・休日の人数）
   function baseDemand(state, type, code) {
-    const ex = extraDemand(state);
-    return (Number((state.demand[type] || {})[code]) || 0) + (code === ex.code ? ex.n : 0);
+    return Number((state.demand[type] || {})[code]) || 0;
   }
 
   // その日の必要人数（日付ごとの変更があればそれを優先）
@@ -379,15 +355,38 @@
 
     const demand = cal.map((c) => codes.map((code, k) => (isDemand[k] ? Math.max(0, demandOf(state, c.day, c.type, code)) : 0)));
 
-    // その日に使える体制：通常の人数（必要人数）と、休日の3人勤務（日付ごとの人数を変えていない休日だけ）
+    // その日に使える体制（日付ごとの人数を変えていない日だけ、通常以外の体制も選べる）
+    //  std：通常の人数／extra：職員が多い月に D などを追加した体制／three：休日の3人勤務
     const tp = state.threePerson || { enabled: false, plans: [] };
     const altPlans = tp.enabled
       ? tp.plans.map((pl) => codes.map((code, k) => (isDemand[k] ? Math.max(0, Number(pl[code]) || 0) : 0))).filter((pl) => pl.some((n) => n > 0))
       : [];
-    const plans = cal.map((c, d) => {
-      const list = [demand[d]];
-      if (c.type === 'holiday' && !state.demandOverrides[c.day]) for (const pl of altPlans) list.push(pl);
-      return list;
+    const ex = extraDemand(state);
+    const extraIdx = ex.n > 0 ? idx(ex.code) : -1;
+    const plans = [], planKind = [], planPen = [];
+    cal.forEach((c, d) => {
+      const list = [], kinds = [], pens = [];
+      const free = !state.demandOverrides[c.day];
+      list.push(demand[d]);
+      kinds.push('std');
+      pens.push(free && extraIdx >= 0 ? W.EXTRA_MISS * ex.n : 0);
+      if (free && extraIdx >= 0)
+        for (let j = 1; j <= ex.n; j++) {
+          const pl = demand[d].slice();
+          pl[extraIdx] += j;
+          list.push(pl);
+          kinds.push('extra');
+          pens.push(W.EXTRA_MISS * (ex.n - j));
+        }
+      if (free && c.type === 'holiday')
+        for (const pl of altPlans) {
+          list.push(pl);
+          kinds.push('three');
+          pens.push(W.THREE);
+        }
+      plans.push(list);
+      planKind.push(kinds);
+      planPen.push(pens);
     });
     const homeMask = state.staff.map((st) => HOME_MASK[st.home] || 3);
     const homes = homeMask.some((m) => m !== 3); // 担当ホームが決まっている職員がいれば、ホームごとの体制を確認する
@@ -482,7 +481,7 @@
     return {
       S, D, K, codes,
       names: state.staff.map((s) => s.name),
-      night, work, off, leave, isDemand, role, plans, homeMask, homes,
+      night, work, off, leave, isDemand, role, plans, planKind, planPen, extraIdx, homeMask, homes,
       minRest: Math.max(0, Number(r.minRest) || 0),
       idealRest: Math.max(0, Number(r.idealRest) || 0),
       dayType: cal.map((c) => (c.type === 'holiday' ? 1 : 0)),
@@ -771,7 +770,7 @@
     let best = Infinity, idx = 0;
     for (let i = 0; i < plans.length; i++) {
       const pl = plans[i];
-      let c = i > 0 ? W.THREE : 0;
+      let c = p.planPen[d][i];
       for (let k = 0; k < p.K; k++) if (p.isDemand[k]) c += W.HARD * Math.abs(cnt[k] - pl[k]);
       if (c < best) {
         best = c;
@@ -785,6 +784,11 @@
     return bestPlan(p, A, d).idx;
   }
 
+  // その日に使われた体制の種類（'std' | 'extra' | 'three'）
+  function dayPlanKind(p, A, d) {
+    return p.planKind[d][bestPlan(p, A, d).idx];
+  }
+
   // 1日分の違反点（指定した人数ちょうどか、ホームごとの体制がそろっているか）
   function dayCost(p, A, d, out) {
     const bp = bestPlan(p, A, d);
@@ -796,7 +800,7 @@
         const need = pl[k], n = bp.cnt[k];
         out.push({ level: 'hard', staff: -1, day: d, msg: n < need ? `${p.codes[k]}が${need - n}人足りません` : `${p.codes[k]}が指定の人数より${n - need}人多くなっています` });
       }
-      if (bp.idx > 0) out.push({ level: 'soft', staff: -1, day: d, msg: '休日の3人勤務の日です' });
+      if (p.planKind[d][bp.idx] === 'three') out.push({ level: 'soft', staff: -1, day: d, msg: '休日の3人勤務の日です' });
     }
     if (p.homes) c += homeCost(p, A, d, out);
     return c;
@@ -990,6 +994,6 @@
     daysInMonth, jpHolidaysOfYear, buildCalendar,
     defaultState, defaultShifts, normalizeState, normalizeStaff, emptyTail, prevMonthDays,
     isDemandShift, extraDemand, baseDemand, demandOf, capOffDays, nightRange, validateSettings, compile, precheck,
-    staffCost, dayCost, dayPlanIndex, nightCount, offCount, globalCost, evaluate, stats, gridToMatrix,
+    staffCost, dayCost, dayPlanIndex, dayPlanKind, nightCount, offCount, globalCost, evaluate, stats, gridToMatrix,
   };
 })(typeof self !== 'undefined' ? self : this);

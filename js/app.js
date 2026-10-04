@@ -373,8 +373,8 @@
       <section class="card">
         <h2>必ず守る条件</h2>
         <div class="rules">
-          <label>職員が <input type="number" min="1" max="31" data-rule="baseStaff" data-type="number" value="${esc(r.baseStaff)}" class="w-num"> 名を超えたら、超えた人数分 <select data-rule="extraCode">${codeOpts(r.extraCode, demandShifts())}</select> を毎日1人ずつ増やす
-            <span class="hint">休みの平均が下限を下回らない範囲で増やします${extraNote()}</span></label>
+          <label>職員が <input type="number" min="1" max="31" data-rule="baseStaff" data-type="number" value="${esc(r.baseStaff)}" class="w-num"> 名を超えたら、超えた人数分まで <select data-rule="extraCode">${codeOpts(r.extraCode, demandShifts())}</select> を追加する
+            <span class="hint">毎日ではなく、休みを理想の日数（${esc(r.idealRest)}日）確保できる日にだけ追加します${extraNote()}</span></label>
           <label>公休は1人あたり月 <input type="number" min="0" max="31" data-rule="maxOff" data-type="nullable" value="${r.maxOff === null ? '' : esc(r.maxOff)}" placeholder="上限なし" class="w-num"> 日まで <span class="hint">超えた休みは、生成時に有休にします</span></label>
           <label>休み（公休＋有休）は月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 日以上 <span class="hint">上限はありません。理想の日数は「できるだけ満たす希望」で設定</span></label>
           <label>連勤の上限 <input type="number" min="1" max="31" data-rule="maxConsecutive" data-type="number" value="${esc(r.maxConsecutive)}" class="w-num"> 連勤まで</label>
@@ -514,8 +514,9 @@
           .join('');
         // その日に必要な体制（基本の人数が入っていて、書き換えられる）
         const ov = state.demandOverrides[c.day] || {};
-        const planIdx = A ? M.dayPlanIndex(p, A, d) : 0; // 1以上なら休日の3人勤務
+        const planIdx = A ? M.dayPlanIndex(p, A, d) : 0;
         const plan = A ? p.plans[d][planIdx] : null;
+        const planKind = A ? p.planKind[d][planIdx] : 'std'; // std | extra（職員が多い月の追加）| three（休日の3人勤務）
         let total = 0;
         const counts =
           dcols
@@ -529,16 +530,23 @@
                 for (let s = 0; s < p.S; s++) if (A[s][d] === k) actual++;
               }
               const bad = actual !== null && actual !== plan[k];
-              const cls = ['dem', i === 0 ? 'dem-first' : '', ov[code] !== undefined ? 'changed' : '', need ? 'nz' : '', bad ? 'short' : ''].join(' ');
-              const tip = bad ? `生成結果は${actual}人（指定${need}人）` : ov[code] !== undefined ? `基本の人数から変更（基本：${M.baseDemand(state, c.type, code)}人）` : '';
-              return `<td class="${cls}" title="${esc(tip)}"><input type="number" min="0" max="20" data-day-demand="${c.day}" data-code="${esc(code)}" value="${need}" aria-label="${c.day}日 ${esc(code)}の人数" ${running ? 'disabled' : ''}></td>`;
+              const added = planKind === 'extra' && plan[k] > need ? plan[k] - need : 0; // 職員が多いので追加した人数
+              const cls = ['dem', i === 0 ? 'dem-first' : '', ov[code] !== undefined ? 'changed' : '', need ? 'nz' : '', bad ? 'short' : '', added ? 'plus' : ''].join(' ');
+              const tip = bad
+                ? `生成結果は${actual}人（指定${need}人）`
+                : added
+                  ? `職員が多いので、この日は${esc(code)}を${added}人追加しています（計${plan[k]}人）`
+                  : ov[code] !== undefined
+                    ? `基本の人数から変更（基本：${M.baseDemand(state, c.type, code)}人）`
+                    : '';
+              return `<td class="${cls}" title="${esc(tip)}"><input type="number" min="0" max="20" data-day-demand="${c.day}" data-code="${esc(code)}" value="${need}" aria-label="${c.day}日 ${esc(code)}の人数" ${running ? 'disabled' : ''}>${added ? `<span class="plus-badge">+${added}</span>` : ''}</td>`;
             })
             .join('') +
-          (planIdx > 0
+          (planKind === 'three'
             ? `<td class="dem-sum three" title="休日の3人勤務（${esc(dcols.filter((code) => plan[p.codes.indexOf(code)] > 0).join('・'))}）">3人</td>`
-            : `<td class="dem-sum ${total > state.staff.length ? 'short' : ''}">${total}</td>`) +
+            : `<td class="dem-sum ${total > state.staff.length ? 'short' : ''}">${planKind === 'extra' ? plan.reduce((a, n, k) => a + (p.isDemand[k] ? n : 0), 0) : total}</td>`) +
           `<td class="dem-add"></td>`;
-        return `<tr class="${c.type === 'holiday' ? 'row-holiday' : ''} ${dayMark[d] ? 'row-bad' : ''} ${planIdx > 0 ? 'row-three' : ''}">${dateCells(c)}${cells}${counts}</tr>`;
+        return `<tr class="${c.type === 'holiday' ? 'row-holiday' : ''} ${dayMark[d] ? 'row-bad' : ''} ${planKind === 'three' ? 'row-three' : ''}">${dateCells(c)}${cells}${counts}</tr>`;
       })
       .join('');
     // 前月末の勤務（月をまたぐ連勤・宿直明けなどの判定に使う。すべて入力しないと生成できない）
@@ -630,6 +638,7 @@
           <span class="lg"><span class="sw sw-missing"></span>前月の未入力</span>
           <span class="lg"><span class="sw sw-short">1</span>人数が指定と違う</span>
           <span class="lg"><span class="sw sw-three">3人</span>休日の3人勤務</span>
+          ${M.extraDemand(state).n ? `<span class="lg"><span class="sw sw-plus">+1</span>職員が多いので追加した勤務</span>` : ''}
         </div>
         <div class="table-wrap tall"><table class="sheet main">
           <thead><tr><th>日</th><th>曜</th>${head}</tr></thead>
@@ -680,9 +689,8 @@
   function extraNote() {
     const ex = M.extraDemand(state);
     if (!ex.over) return '';
-    if (ex.n === ex.over) return `（職員が${state.staff.length}名なので、${esc(ex.code)}を毎日${ex.n}人増やしています）`;
-    if (ex.n > 0) return `（職員が${state.staff.length}名なので、${esc(ex.code)}を毎日${ex.n}人増やしています。${ex.over}人増やすと休みが下限を下回るため、${ex.n}人までにしています）`;
-    return `（職員が${state.staff.length}名ですが、${esc(ex.code)}を増やすと休みが下限を下回るため、増やしていません）`;
+    if (!ex.n) return '';
+    return `（職員が${state.staff.length}名なので、休みを${esc(state.rules.idealRest)}日以上確保できる日に、${esc(ex.code)}を最大${ex.n}人追加します。追加した日は右側の${esc(ex.code)}の欄に「+1」と表示します）`;
   }
 
   // 職員の人数が変わると前回の生成結果は使えないので消す（固定・希望休は残す）

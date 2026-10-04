@@ -93,8 +93,9 @@
         const cell = row.getCell(firstStaffCol + s);
         cell.value = code;
       }
-      const planIdx = M.dayPlanIndex(p, A, d); // 1以上なら休日の3人勤務
+      const planIdx = M.dayPlanIndex(p, A, d);
       const plan = p.plans[d][planIdx];
+      const planKind = p.planKind[d][planIdx]; // std | extra（職員が多い月の追加）| three（休日の3人勤務）
       countShifts.forEach((x, i) => {
         const k = p.codes.indexOf(x.code);
         let n = 0;
@@ -104,7 +105,8 @@
         if (n !== plan[k]) cell.font = { color: { argb: RED }, bold: true };
       });
       const notes = [];
-      if (planIdx > 0) notes.push('3人勤務');
+      if (planKind === 'three') notes.push('3人勤務');
+      if (planKind === 'extra') notes.push(`${p.codes[p.extraIdx]}追加`);
       if (c.holidayName) notes.push(c.holidayName);
       row.getCell(noteCol).value = notes.join('・');
       for (let ci = 1; ci <= lastCol; ci++) {

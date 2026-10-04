@@ -281,3 +281,8 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .guide .steps li.current .no { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide .steps li.done .no { background: #e7f5ec; border-color: #9fcfb0; color: var(--ok); }
 .guide.stage6 { border-color: #b9dfc6; background: var(--ok-bg); color: var(--ok); }
+
+/* 職員が多い月に追加した勤務（+1） */
+.sheet.main td.dem.plus { position: relative; background: #eef6ee; }
+.sheet.main td.dem .plus-badge { position: absolute; top: 1px; right: 2px; font-size: 9px; font-weight: bold; color: var(--ok); line-height: 1; pointer-events: none; }
+.legend .sw-plus { background: #eef6ee; color: var(--ok); }
