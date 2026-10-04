@@ -596,12 +596,30 @@
       </div>`
         : '';
 
+    // 進み具合に合わせた説明：①前月の勤務 → ②体制・固定を入れて生成 → ③確認・Excelダウンロード
+    const stage = missing ? 1 : A ? 3 : 2;
+    const stepNames = ['前月の勤務', '体制・固定を入れて生成', '確認・Excelダウンロード'];
+    const steps = `<ol class="steps">${stepNames
+      .map((name, i) => `<li class="${i + 1 < stage ? 'done' : i + 1 === stage ? 'current' : ''}"><span class="no">${i + 1 < stage ? '✓' : i + 1}</span>${name}</li>`)
+      .join('')}</ol>`;
+    let guideBody;
+    if (stage === 1)
+      guideBody = `<strong>前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
+          <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
+          前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。`;
+    else if (stage === 2)
+      guideBody = [
+        '平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。',
+        '決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。',
+        '「希望休」は、できるだけ休みにします。',
+        '「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。',
+      ].join('<br>');
+    else guideBody = ['マスの勤務は変更可能です。', '変更すると条件を確認し直します。', '問題なければ右上のExcelダウンロードを押してください。'].join('<br>');
+    const guide = `<div class="guide stage${stage}">${steps}<div class="guide-body">${guideBody}</div></div>`;
+
     return `
       <section class="card">
-        ${toolbar}${status}${missing ? `<div class="notice warn"><strong>前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
-          <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
-          前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。</div>` : ''}${preNotice}${summary}${checks}
-        <p class="hint">いちばん上の前月の行は、前月末の勤務です（月をまたぐ連勤・宿直明けの判定に使います）。<br>「前月のExcelを読み込む」で前月の勤務表から取り込むのが確実です。<br>前月のExcelがない場合は、各マスで勤務を選んで入力してください。<br>右側はその日に必要な体制です。<br>平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。<br>決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。<br>「希望休」は、できるだけ休みにします。<br>「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。<br>生成後にマスを選び直すと、その勤務で固定され、条件を確認し直します。</p>
+        ${toolbar}${status}${guide}${preNotice}${summary}${checks}
         <div class="legend" aria-label="表の見かた">
           <span class="lg"><span class="sw sw-hard"></span>必ず守る条件の違反</span>
           <span class="lg"><span class="sw sw-soft"></span>できるだけ避けたい点</span>

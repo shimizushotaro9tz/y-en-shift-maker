@@ -269,3 +269,14 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .legend .sw-missing { background: #fff6e0; box-shadow: inset 0 0 0 2px #e0a800; }
 .legend .sw-short { background: var(--error-bg); box-shadow: inset 0 0 0 2px var(--error); color: var(--text); }
 .legend .sw-three { background: #e3ecfa; color: #24426e; }
+
+/* 進み具合に合わせた説明 */
+.guide { border: 1px solid #c4d6f0; background: var(--info-bg); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 14px; color: #24426e; line-height: 1.8; }
+.guide.stage1 { border-color: #f0d79a; background: var(--warn-bg); color: var(--warn); }
+.guide .steps { display: flex; flex-wrap: wrap; gap: 4px 18px; list-style: none; margin: 0 0 8px; padding: 0 0 8px; border-bottom: 1px dashed rgba(0, 0, 0, .15); font-size: 13px; color: var(--muted); }
+.guide .steps li { display: flex; align-items: center; gap: 6px; }
+.guide .steps li + li::before { content: '→'; color: #9aa0a6; margin-right: 12px; }
+.guide .steps .no { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid #9aa0a6; font-size: 11px; font-weight: bold; background: #fff; }
+.guide .steps li.current { color: var(--text); font-weight: bold; }
+.guide .steps li.current .no { background: var(--accent); border-color: var(--accent); color: #fff; }
+.guide .steps li.done .no { background: #e7f5ec; border-color: #9fcfb0; color: var(--ok); }
