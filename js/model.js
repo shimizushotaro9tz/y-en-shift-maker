@@ -189,8 +189,7 @@
         baseStaff: 6, // 基本の職員数。これを超えた人数分、extraCode を毎日1人ずつ増やす
         extraCode: 'D',
         maxOff: 9, // 公休は1人あたりこの日数まで。超えた休みは有休にする
-        minRest: 8, // 休み（公休＋有休）の日数の範囲
-        maxRest: 11,
+        minRest: 8, // 休み（公休＋有休）の日数の下限（上限は設けない）
         minNights: null, // null なら自動（宿直の総数 ÷ 宿直できる人数 の切り捨て〜切り上げ）
         maxNights: null,
         maxNightDiff: 1,
@@ -213,6 +212,7 @@
     const out = Object.assign({}, d, s);
     out.version = VERSION;
     out.rules = Object.assign({}, d.rules, s.rules || {});
+    delete out.rules.maxRest; // 休みの上限は撤廃した
     if (!Array.isArray(out.rules.forbiddenPairs)) out.rules.forbiddenPairs = [];
     out.demand = s.demand && s.demand.weekday && s.demand.holiday ? s.demand : d.demand;
     // 以前の版の仮名「職員A〜職員Z」は「職員1〜」に置き換える
@@ -482,7 +482,6 @@
       names: state.staff.map((s) => s.name),
       night, work, off, leave, isDemand, role, plans, homeMask, homes,
       minRest: Math.max(0, Number(r.minRest) || 0),
-      maxRest: Math.max(0, Number(r.maxRest) || 31),
       dayType: cal.map((c) => (c.type === 'holiday' ? 1 : 0)),
       dayLabels: cal.map((c) => c.day + '日(' + c.dowLabel + ')'),
       fillerIdx, demand, locked, lockSource, wish, forbid,
@@ -586,15 +585,12 @@
         issues.push(`宿直${totalIn}回を${nCan}人で分けると1人あたり約${avg.toFixed(1)}回になり、回数の差を${p.maxNightDiff}回以内にしたまま下限・上限に収められません。`);
     }
 
-    // 休み（公休＋有休）の日数の範囲
-    let restStd = 0, restMax = 0;
+    // 休み（公休＋有休）の日数の下限
+    let restMax = 0;
     for (let d = 0; d < D; d++) {
       const restOf = (pl) => S - planSum(pl) + pl.reduce((a, n, k) => a + (p.off[k] || p.leave[k] ? n : 0), 0);
-      restStd += restOf(p.plans[d][0]);
       restMax += Math.max(...p.plans[d].map(restOf));
     }
-    if (restStd > S * p.maxRest)
-      issues.push(`必要人数から計算すると、休みは1人平均${(restStd / S).toFixed(1)}日になり、上限（${p.maxRest}日）を超えます。「必要人数」で早番（平日は断続 A）や遅番 D の人数を増やすか、休みの上限を見直してください。`);
     if (restMax < S * p.minRest)
       issues.push(`休日の3人勤務を使っても、休みは1人平均${(restMax / S).toFixed(1)}日にしかならず、下限（${p.minRest}日）に足りません。必要人数か休みの下限を見直してください。`);
 
@@ -723,9 +719,6 @@
     if (restDays < p.minRest) {
       c += W.HARD * (p.minRest - restDays);
       report('hard', -1, `休み（公休＋有休）が${restDays}日で、下限（${p.minRest}日）に足りません`);
-    } else if (restDays > p.maxRest) {
-      c += W.HARD * (restDays - p.maxRest);
-      report('hard', -1, `休み（公休＋有休）が${restDays}日で、上限（${p.maxRest}日）を超えています`);
     }
 
     // 公休数

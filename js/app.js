@@ -376,7 +376,7 @@
           <label>職員が <input type="number" min="1" max="31" data-rule="baseStaff" data-type="number" value="${esc(r.baseStaff)}" class="w-num"> 名を超えたら、超えた人数分 <select data-rule="extraCode">${codeOpts(r.extraCode, demandShifts())}</select> を毎日1人ずつ増やす
             <span class="hint">休みの平均が下限を下回らない範囲で増やします${extraNote()}</span></label>
           <label>公休は1人あたり月 <input type="number" min="0" max="31" data-rule="maxOff" data-type="nullable" value="${r.maxOff === null ? '' : esc(r.maxOff)}" placeholder="上限なし" class="w-num"> 日まで <span class="hint">超えた休みは、生成時に有休にします</span></label>
-          <label>休み（公休＋有休）の日数 月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 〜 <input type="number" min="0" max="31" data-rule="maxRest" data-type="number" value="${esc(r.maxRest)}" class="w-num"> 日</label>
+          <label>休み（公休＋有休）は月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 日以上 <span class="hint">上限はありません</span></label>
           <label>連勤の上限 <input type="number" min="1" max="31" data-rule="maxConsecutive" data-type="number" value="${esc(r.maxConsecutive)}" class="w-num"> 連勤まで</label>
           <label>宿直の回数 1人あたり月 <input type="number" min="0" max="31" data-rule="minNights" data-type="nullable" value="${r.minNights === null ? '' : esc(r.minNights)}" placeholder="自動" class="w-num"> 〜 <input type="number" min="0" max="31" data-rule="maxNights" data-type="nullable" value="${r.maxNights === null ? '' : esc(r.maxNights)}" placeholder="自動" class="w-num"> 回
             <span class="hint">空欄＝自動：今月は宿直${auto.total}回 ÷ 宿直できる${auto.n}人 で <b>${auto.min === auto.max ? auto.min : auto.min + "〜" + auto.max}回</b></span></label>
