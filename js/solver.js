@@ -107,6 +107,7 @@
     const dc = new Float64Array(D);
     const nights = new Int16Array(S);
     const offs = new Int16Array(S);
+    const akes = new Int16Array(S); // 明け公（E公）の日数
     let gc = 0; // 職員間の宿直回数の差の罰点
     let cur = 0;
     const recomputeAll = () => {
@@ -115,9 +116,10 @@
         cur += sc[s] = M.staffCost(p, A, s);
         nights[s] = M.nightCount(p, A, s);
         offs[s] = M.offCount(p, A, s);
+        akes[s] = M.akeCount(p, A, s);
       }
       for (let d = 0; d < D; d++) cur += dc[d] = M.dayCost(p, A, d);
-      cur += gc = M.globalCost(p, nights, offs);
+      cur += gc = M.globalCost(p, nights, offs, akes);
     };
     recomputeAll();
 
@@ -143,11 +145,13 @@
       const ndc = dd.map((d) => M.dayCost(p, A, d));
       const oldN = ss.map((s) => nights[s]);
       const oldO = ss.map((s) => offs[s]);
+      const oldK = ss.map((s) => akes[s]);
       ss.forEach((s) => {
         nights[s] = M.nightCount(p, A, s);
         offs[s] = M.offCount(p, A, s);
+        akes[s] = M.akeCount(p, A, s);
       });
-      const ngc = M.globalCost(p, nights, offs);
+      const ngc = M.globalCost(p, nights, offs, akes);
       let after = ngc;
       for (const x of nsc) after += x;
       for (const x of ndc) after += x;
@@ -162,6 +166,7 @@
       ss.forEach((s, i) => {
         nights[s] = oldN[i];
         offs[s] = oldO[i];
+        akes[s] = oldK[i];
       });
       for (let i = n - 1; i >= 0; i--) A[cs[i]][cd[i]] = old[i];
       return false;

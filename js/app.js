@@ -5,7 +5,7 @@
   const STORAGE_KEY = 'y-shift-maker.v1'; // 設定（ブラウザに残す）
   const OLD_SESSION_KEY = 'y-shift-maker.month.v1'; // 以前の版で使っていた、その月の入力の保存先
   // その月の入力として扱う項目（前月末の勤務 staff[].prevTail もこちら）。保存せず、再読み込みで初期化する
-  const MONTH_KEYS = ['year', 'month', 'requests', 'result', 'demandOverrides', 'dayTypeOverrides'];
+  const MONTH_KEYS = ['year', 'month', 'requests', 'result', 'demandOverrides', 'dayTypeOverrides', 'akeKo'];
 
   let state = load();
   let view = 'main'; // 'main'（シフト表）| 'settings'（設定）
@@ -530,21 +530,22 @@
                 for (let s = 0; s < p.S; s++) if (A[s][d] === k) actual++;
               }
               const bad = actual !== null && actual !== plan[k];
-              const added = planKind === 'extra' && plan[k] > need ? plan[k] - need : 0; // 職員が多いので追加した人数
-              const cls = ['dem', i === 0 ? 'dem-first' : '', ov[code] !== undefined ? 'changed' : '', need ? 'nz' : '', bad ? 'short' : '', added ? 'plus' : ''].join(' ');
+              // 職員が多い月の追加や明け公（E公）の日で、基本の人数から増減した人数
+              const added = A && !bad && ov[code] === undefined ? plan[k] - need : 0;
+              const cls = ['dem', i === 0 ? 'dem-first' : '', ov[code] !== undefined ? 'changed' : '', need ? 'nz' : '', bad ? 'short' : '', added > 0 ? 'plus' : added < 0 ? 'minus' : ''].join(' ');
               const tip = bad
                 ? `生成結果は${actual}人（指定${need}人）`
                 : added
-                  ? `職員が多いので、この日は${esc(code)}を${added}人追加しています（計${plan[k]}人）`
+                  ? `この日は${esc(code)}を${added > 0 ? added + '人増やして' : -added + '人減らして'}います（計${plan[k]}人。${planKind === 'extra' && k === p.extraIdx ? '職員が多いため' : '明け公（E公）の日のため'}）`
                   : ov[code] !== undefined
                     ? `基本の人数から変更（基本：${M.baseDemand(state, c.type, code)}人）`
                     : '';
-              return `<td class="${cls}" title="${esc(tip)}"><input type="number" min="0" max="20" data-day-demand="${c.day}" data-code="${esc(code)}" value="${need}" aria-label="${c.day}日 ${esc(code)}の人数" ${running ? 'disabled' : ''}>${added ? `<span class="plus-badge">+${added}</span>` : ''}</td>`;
+              return `<td class="${cls}" title="${esc(tip)}"><input type="number" min="0" max="20" data-day-demand="${c.day}" data-code="${esc(code)}" value="${need}" aria-label="${c.day}日 ${esc(code)}の人数" ${running ? 'disabled' : ''}>${added ? `<span class="plus-badge ${added < 0 ? 'minus' : ''}">${added > 0 ? '+' + added : '−' + -added}</span>` : ''}</td>`;
             })
             .join('') +
           (planKind === 'three'
             ? `<td class="dem-sum three" title="休日の3人勤務（${esc(dcols.filter((code) => plan[p.codes.indexOf(code)] > 0).join('・'))}）">3人</td>`
-            : `<td class="dem-sum ${total > state.staff.length ? 'short' : ''}">${planKind === 'extra' ? plan.reduce((a, n, k) => a + (p.isDemand[k] ? n : 0), 0) : total}</td>`) +
+            : `<td class="dem-sum ${total > state.staff.length ? 'short' : ''}">${A ? plan.reduce((a, n, k) => a + (p.isDemand[k] && p.work[k] ? n : 0), 0) : total}</td>`) +
           `<td class="dem-add"></td>`;
         return `<tr class="${c.type === 'holiday' ? 'row-holiday' : ''} ${dayMark[d] ? 'row-bad' : ''} ${planKind === 'three' ? 'row-three' : ''}">${dateCells(c)}${cells}${counts}</tr>`;
       })
@@ -639,6 +640,7 @@
           <span class="lg"><span class="sw sw-short">1</span>人数が指定と違う</span>
           <span class="lg"><span class="sw sw-three">3人</span>休日の3人勤務</span>
           ${M.extraDemand(state).n ? `<span class="lg"><span class="sw sw-plus">+1</span>職員が多いので追加した勤務</span>` : ''}
+          ${akeControl()}
         </div>
         <div class="table-wrap tall"><table class="sheet main">
           <thead><tr><th>日</th><th>曜</th>${head}</tr></thead>
@@ -693,6 +695,18 @@
     return `（職員が${state.staff.length}名なので、休みを${esc(state.rules.idealRest)}日以上確保できる日に、${esc(ex.code)}を最大${ex.n}人追加します。追加した日は右側の${esc(ex.code)}の欄に「+1」と表示します）`;
   }
 
+  // 明け公（E公）の日数を増減する小さな操作（凡例の行の右端に置く）
+  function akeControl() {
+    const ake = state.shifts.find((x) => x.night === 'out' && x.off && !x.work);
+    if (!ake) return '';
+    const n = Number(state.akeKo) || 0;
+    const tip = `宿直明けの人を、その日は勤務にせず公休（${ake.code}）にする日数です。どの日にするかは生成時に選びます。代わりに朝の勤務（平日はA、休日はC）を1人増やします。`;
+    return `<span class="ake-ctl" title="${esc(tip)}">明け公（${esc(ake.code)}）
+      <button type="button" class="icon-btn" data-action="ake-dec" aria-label="明け公を減らす" ${n <= 0 || running ? 'disabled' : ''}>－</button>
+      <b>${n}</b>日
+      <button type="button" class="icon-btn" data-action="ake-inc" aria-label="明け公を増やす" ${running ? 'disabled' : ''}>＋</button></span>`;
+  }
+
   // 職員の人数が変わると前回の生成結果は使えないので消す（固定・希望休は残す）
   function staffChanged() {
     if (!state.result) return;
@@ -723,6 +737,7 @@
     state.dayTypeOverrides = {};
     state.demandOverrides = {};
     for (const st of state.staff) st.prevTail = M.emptyTail(); // 前月の行は未入力に戻す
+    state.akeKo = 0;
     state.year = y;
     state.month = m;
     mainStatus = null;
@@ -1002,6 +1017,10 @@
         break;
       case 'three-del':
         state.threePerson.plans.splice(i, 1);
+        break;
+      case 'ake-inc':
+      case 'ake-dec':
+        state.akeKo = Math.max(0, (Number(state.akeKo) || 0) + (btn.dataset.action === 'ake-inc' ? 1 : -1));
         break;
       case 'reset-day-demand':
         delete state.demandOverrides[btn.dataset.day];

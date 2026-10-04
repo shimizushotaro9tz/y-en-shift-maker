@@ -286,3 +286,10 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .sheet.main td.dem.plus { position: relative; background: #eef6ee; }
 .sheet.main td.dem .plus-badge { position: absolute; top: 1px; right: 2px; font-size: 9px; font-weight: bold; color: var(--ok); line-height: 1; pointer-events: none; }
 .legend .sw-plus { background: #eef6ee; color: var(--ok); }
+
+/* 明け公（E公）の日数 */
+.legend .ake-ctl { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); }
+.legend .ake-ctl b { color: var(--text); min-width: 1.2em; text-align: center; }
+.legend .ake-ctl .icon-btn { width: 24px; height: 24px; font-size: 14px; }
+.sheet.main td.dem.minus { position: relative; background: #f3f0fa; }
+.sheet.main td.dem .plus-badge.minus { color: #5b4a99; }
