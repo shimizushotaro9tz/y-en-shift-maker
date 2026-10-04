@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>シフト自動作成</title>
+  <meta name="description" content="児童養護施設のユニット勤務表を、条件に合わせて自動作成し、Excel形式でダウンロードできるWebアプリです。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%222%22 y=%224%22 width=%2228%22 height=%2226%22 rx=%224%22 fill=%22%232f6f62%22/%3E%3Cpath d=%22M7 12h18M7 18h18M7 24h18M13 8v20M19 8v20%22 stroke=%22white%22 stroke-width=%222%22/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="head-row">
+      <div>
+        <h1>シフト自動作成</h1>
+        <p class="sub" id="subtitle"></p>
+      </div>
+      <button type="button" class="btn" id="view-toggle" data-action="toggle-view"></button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="設定の項目" hidden>
+    <button type="button" class="tab" role="tab" data-tab="basic">基本設定</button>
+    <button type="button" class="tab" role="tab" data-tab="staff">職員</button>
+    <button type="button" class="tab" role="tab" data-tab="shifts">勤務区分</button>
+    <button type="button" class="tab" role="tab" data-tab="demand">必要人数</button>
+    <button type="button" class="tab" role="tab" data-tab="rules">ルール</button>
+  </nav>
+
+  <main>
+    <div id="settings-errors" class="notice error" hidden></div>
+    <div id="view"></div>
+  </main>
+
+  <footer class="app-footer">
+    入力した内容はこのブラウザ内だけに保存され、外部のサーバーには送信されません。個人情報は入力せず、仮名を使ってください。
+  </footer>
+
+  <script src="vendor/exceljs.min.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/solver.js"></script>
+  <script src="js/excel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# 勤務表・設定ファイルなどの実データを誤って公開しないため
+*.xlsx
+*.xls
+*.csv
+*.json
+
+# OS・エディタ
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
