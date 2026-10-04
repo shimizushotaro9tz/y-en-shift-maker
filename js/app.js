@@ -266,7 +266,7 @@
           <li><b>宿直</b>：「宿直入り」の翌日は、必ず「宿直明け」のどれか（EC・EA・E公・E有 など）になります。</li>
           <li><b>勤務日に数える</b>：連勤の日数に数えるかどうかです。チェックのない区分は休みの日として扱います。</li>
           <li><b>公休に数える／有休に数える</b>：月の公休数・有休数の集計に使います。</li>
-          <li>有休だけの区分（有）は自動では入りません。シフト表のマスで選んで固定してください。</li>
+          <li>有休だけの区分（有）は、公休が上限（ルールで設定）を超えた分にだけ自動で入ります。それ以外で有休を入れるときは、シフト表のマスで選んで固定してください。</li>
         </ul>
       </section>`;
   }
@@ -320,7 +320,7 @@
     return `
       <section class="card">
         <h2>基本の人数</h2>
-        <p class="hint">その日の各勤務の人数を、<b>ちょうどその人数</b>にします。指定した勤務に入らない職員は「${esc(state.rules.fillerCode)}」になります。</p>
+        <p class="hint">その日の各勤務の人数を、<b>ちょうどその人数</b>にします。指定した勤務に入らない職員は「${esc(state.rules.fillerCode)}」になります。${extraNote()}</p>
         <div class="table-wrap"><table class="sheet demand">
           <thead><tr><th></th>${head}<th>出勤計</th><th>休み</th></tr></thead><tbody>${tplRows}</tbody></table></div>
       </section>
@@ -373,6 +373,9 @@
       <section class="card">
         <h2>必ず守る条件</h2>
         <div class="rules">
+          <label>職員が <input type="number" min="1" max="31" data-rule="baseStaff" data-type="number" value="${esc(r.baseStaff)}" class="w-num"> 名を超えたら、超えた人数分 <select data-rule="extraCode">${codeOpts(r.extraCode, demandShifts())}</select> を毎日1人ずつ増やす
+            <span class="hint">休みの平均が下限を下回らない範囲で増やします${extraNote()}</span></label>
+          <label>公休は1人あたり月 <input type="number" min="0" max="31" data-rule="maxOff" data-type="nullable" value="${r.maxOff === null ? '' : esc(r.maxOff)}" placeholder="上限なし" class="w-num"> 日まで <span class="hint">超えた休みは、生成時に有休にします</span></label>
           <label>休み（公休＋有休）の日数 月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 〜 <input type="number" min="0" max="31" data-rule="maxRest" data-type="number" value="${esc(r.maxRest)}" class="w-num"> 日</label>
           <label>連勤の上限 <input type="number" min="1" max="31" data-rule="maxConsecutive" data-type="number" value="${esc(r.maxConsecutive)}" class="w-num"> 連勤まで</label>
           <label>宿直の回数 1人あたり月 <input type="number" min="0" max="31" data-rule="minNights" data-type="nullable" value="${r.minNights === null ? '' : esc(r.minNights)}" placeholder="自動" class="w-num"> 〜 <input type="number" min="0" max="31" data-rule="maxNights" data-type="nullable" value="${r.maxNights === null ? '' : esc(r.maxNights)}" placeholder="自動" class="w-num"> 回
@@ -526,7 +529,7 @@
               }
               const bad = actual !== null && actual !== plan[k];
               const cls = ['dem', i === 0 ? 'dem-first' : '', ov[code] !== undefined ? 'changed' : '', need ? 'nz' : '', bad ? 'short' : ''].join(' ');
-              const tip = bad ? `生成結果は${actual}人（指定${need}人）` : ov[code] !== undefined ? `基本の人数から変更（基本：${Number(state.demand[c.type][code]) || 0}人）` : '';
+              const tip = bad ? `生成結果は${actual}人（指定${need}人）` : ov[code] !== undefined ? `基本の人数から変更（基本：${M.baseDemand(state, c.type, code)}人）` : '';
               return `<td class="${cls}" title="${esc(tip)}"><input type="number" min="0" max="20" data-day-demand="${c.day}" data-code="${esc(code)}" value="${need}" aria-label="${c.day}日 ${esc(code)}の人数" ${running ? 'disabled' : ''}></td>`;
             })
             .join('') +
@@ -595,7 +598,7 @@
           前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると次の手順に進みます。`;
     else if (stage === 2)
       guideBody = [
-        '表の右側の数字は、その日に必要な体制（勤務ごとの人数）です。平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。',
+        '表の右側の数字は、その日に必要な体制（勤務ごとの人数）です。平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。' + extraNote(),
         '既に決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。',
         '休みの希望は、マスのプルダウンで「希望休」を選んでください。できるだけ休みにします。',
         '<strong>入力が済んだら（変更がなければそのまま）、「シフト生成」を押してください。</strong>残りのマスを条件に合わせて埋めます。',
@@ -670,6 +673,15 @@
   // 生成結果の内容を表す文字列（ダウンロード後に変更されたかの判定に使う）
   function resultKey() {
     return state.result ? JSON.stringify([state.year, state.month, state.staff.map((st) => st.name), state.result.grid]) : '';
+  }
+
+  // 職員が基本の人数を超えて、勤務を自動で増やしているときの説明
+  function extraNote() {
+    const ex = M.extraDemand(state);
+    if (!ex.over) return '';
+    if (ex.n === ex.over) return `（職員が${state.staff.length}名なので、${esc(ex.code)}を毎日${ex.n}人増やしています）`;
+    if (ex.n > 0) return `（職員が${state.staff.length}名なので、${esc(ex.code)}を毎日${ex.n}人増やしています。${ex.over}人増やすと休みが下限を下回るため、${ex.n}人までにしています）`;
+    return `（職員が${state.staff.length}名ですが、${esc(ex.code)}を増やすと休みが下限を下回るため、増やしていません）`;
   }
 
   // 職員の人数が変わると前回の生成結果は使えないので消す（固定・希望休は残す）
@@ -932,16 +944,11 @@
         mainStatus = null;
         break;
       case 'staff-add': {
+        // 追加する職員はどちらのホームにも入れる職員として、職員F3、F4…と名付ける
         const used = new Set(state.staff.map((s) => s.name));
         let n = 1, name;
-        while (used.has((name = '職員' + n))) n++;
-        // 番号順の位置に入れる（職員3が空いていれば職員2の次）
-        let at = state.staff.findIndex((s) => {
-          const m = /^職員(\d+)$/.exec(s.name);
-          return m && Number(m[1]) > n;
-        });
-        if (at < 0) at = state.staff.length;
-        state.staff.splice(at, 0, M.normalizeStaff({ id: newId(), name }));
+        while (used.has((name = '職員F' + n))) n++;
+        state.staff.push(M.normalizeStaff({ id: newId(), name, home: 'both' }));
         staffChanged();
         break;
       }
@@ -1106,7 +1113,7 @@
       const day = Number(d.dayDemand);
       const c = M.buildCalendar(state)[day - 1];
       const v = Math.max(0, Number(val) || 0);
-      const base = Number(state.demand[c.type][d.code]) || 0;
+      const base = M.baseDemand(state, c.type, d.code);
       const ov = (state.demandOverrides[day] = state.demandOverrides[day] || {});
       if (v === base) delete ov[d.code];
       else ov[d.code] = v;

@@ -186,6 +186,9 @@
       threePerson: { enabled: true, plans: defaultThreePlans() },
       rules: {
         maxConsecutive: 5,
+        baseStaff: 6, // 基本の職員数。これを超えた人数分、extraCode を毎日1人ずつ増やす
+        extraCode: 'D',
+        maxOff: 9, // 公休は1人あたりこの日数まで。超えた休みは有休にする
         minRest: 8, // 休み（公休＋有休）の日数の範囲
         maxRest: 11,
         minNights: null, // null なら自動（宿直の総数 ÷ 宿直できる人数 の切り捨て〜切り上げ）
@@ -270,11 +273,52 @@
     return !(x.leave && !x.work && x.night === 'none');
   }
 
+  // 職員が基本の人数を超えたときに、毎日増やす勤務と人数。
+  // 超えた人数分を増やすが、休み（公休＋有休）の平均が下限を下回らない範囲にとどめる
+  const extraCache = new Map();
+  function extraDemand(state) {
+    const r = state.rules;
+    const code = r.extraCode;
+    const over = Math.max(0, state.staff.length - (Number(r.baseStaff) || 0));
+    const x = state.shifts.find((y) => y.code === code);
+    if (!over || !x || !isDemandShift(state, x)) return { code, n: 0, over };
+    const key = JSON.stringify([state.year, state.month, state.staff.length, code, r.minRest, state.demand, state.dayTypeOverrides, state.shifts.map((y) => [y.code, y.off, y.leave])]);
+    if (extraCache.has(key)) return extraCache.get(key);
+    const cal = buildCalendar(state);
+    const S = state.staff.length;
+    const restAvg = (k) => {
+      let rest = 0;
+      for (const c of cal) {
+        let sum = k, restCoded = 0;
+        for (const y of state.shifts) {
+          if (!isDemandShift(state, y)) continue;
+          const v = Number((state.demand[c.type] || {})[y.code]) || 0;
+          sum += v;
+          if (y.off || y.leave) restCoded += v;
+        }
+        rest += S - sum + restCoded;
+      }
+      return rest / S;
+    };
+    let n = over;
+    while (n > 0 && restAvg(n) < (Number(r.minRest) || 0)) n--;
+    const res = { code, n, over };
+    if (extraCache.size > 50) extraCache.clear();
+    extraCache.set(key, res);
+    return res;
+  }
+
+  // 基本の人数（平日・休日の人数に、職員が多いときの追加分を足したもの）
+  function baseDemand(state, type, code) {
+    const ex = extraDemand(state);
+    return (Number((state.demand[type] || {})[code]) || 0) + (code === ex.code ? ex.n : 0);
+  }
+
   // その日の必要人数（日付ごとの変更があればそれを優先）
   function demandOf(state, day, type, code) {
     const ov = state.demandOverrides[day];
     if (ov && ov[code] !== undefined) return Number(ov[code]) || 0;
-    return Number((state.demand[type] || {})[code]) || 0;
+    return baseDemand(state, type, code);
   }
 
   // ---------- 設定そのものの不備 ----------
@@ -457,6 +501,9 @@
       prevConsec: tails.map((t) => tailRun(t, (k) => work[k])),
       prevRest: tails.map((t) => tailRun(t, (k) => !work[k])),
       maxConsecutive: Math.max(1, Number(r.maxConsecutive) || 1),
+      maxOff: r.maxOff === null || r.maxOff === '' || r.maxOff === undefined ? -1 : Math.max(0, Number(r.maxOff) || 0),
+      // 有休だけの区分（有）。公休の上限を超えた休みに使う
+      leaveIdx: state.shifts.findIndex((x) => x.leave && !x.work && x.night === 'none'),
       targets: { nightTarget, codeTarget, weekendOffTarget },
     };
   }
@@ -865,6 +912,15 @@
     const v = [];
     let total = 0;
     for (let s = 0; s < p.S; s++) total += staffCost(p, A, s, v);
+    // 公休の上限（生成後に有休へ置き換えるので、ここでは手で直した場合などを確かめる）
+    if (p.maxOff >= 0)
+      for (let s = 0; s < p.S; s++) {
+        const n = offCount(p, A, s);
+        if (n > p.maxOff) {
+          total += W.HARD * (n - p.maxOff);
+          v.push({ level: 'hard', staff: s, day: -1, msg: `公休が${n}日で、上限（${p.maxOff}日）を超えています。超えた分は有休にしてください` });
+        }
+      }
     for (let d = 0; d < p.D; d++) total += dayCost(p, A, d, v);
     total += globalCost(p, Array.from({ length: p.S }, (_, s) => nightCount(p, A, s)), Array.from({ length: p.S }, (_, s) => offCount(p, A, s)), v);
     for (let s = 0; s < p.S; s++)
@@ -878,6 +934,19 @@
     const hard = v.filter((x) => x.level === 'hard').length;
     v.sort((a, b) => (a.level === b.level ? a.day - b.day : a.level === 'hard' ? -1 : 1));
     return { total, hardCount: hard, violations: v };
+  }
+
+  // 公休が上限を超えた職員は、超えた分の公休（自動で入れたもの）を月末側から有休に置き換える
+  function capOffDays(p, A) {
+    if (p.maxOff < 0 || p.leaveIdx < 0 || p.fillerIdx < 0) return;
+    for (let s = 0; s < p.S; s++) {
+      let n = offCount(p, A, s);
+      for (let d = p.D - 1; d >= 0 && n > p.maxOff; d--)
+        if (A[s][d] === p.fillerIdx && p.locked[s][d] < 0) {
+          A[s][d] = p.leaveIdx;
+          n--;
+        }
+    }
   }
 
   // 職員ごとの集計
@@ -921,7 +990,7 @@
     VERSION, PREV_DAYS, NIGHT, NIGHT_KEYS, NIGHT_LABELS, ROLE, ROLE_KEYS, ROLE_LABELS, HOME_KEYS, HOME_LABELS, W, WEEK,
     daysInMonth, jpHolidaysOfYear, buildCalendar,
     defaultState, defaultShifts, normalizeState, normalizeStaff, emptyTail, prevMonthDays,
-    isDemandShift, demandOf, nightRange, validateSettings, compile, precheck,
+    isDemandShift, extraDemand, baseDemand, demandOf, capOffDays, nightRange, validateSettings, compile, precheck,
     staffCost, dayCost, dayPlanIndex, nightCount, offCount, globalCost, evaluate, stats, gridToMatrix,
   };
 })(typeof self !== 'undefined' ? self : this);

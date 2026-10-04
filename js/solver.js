@@ -289,6 +289,7 @@
       if (bestCost < M.W.HARD && stale >= 4) break;
     }
 
+    M.capOffDays(p, best); // 公休の上限を超えた分は有休にする
     const ev = M.evaluate(p, best);
     return {
       grid: best.map((r) => Array.from(r)),
