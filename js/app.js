@@ -567,7 +567,7 @@
             return `<td class="cell prev ${code ? '' : 'missing'}"><select data-prev="${si}" data-j="${j}" aria-label="${esc(s.name)} 前月${c.month}/${c.day}" ${running ? 'disabled' : ''}>${prevOpts(code)}</select></td>`;
           })
           .join('');
-        return `<tr class="row-prev ${i === prevDays.length - 1 ? 'row-prev-last' : ''}"><th scope="row" class="date ${cls}">${c.month}/${c.day}</th><td class="dow ${cls}">${c.dowLabel}</td>${cells}<td colspan="${dcols.length + 2}" class="prev-note">${i === 0 ? '前月' : ''}</td></tr>`;
+        return `<tr class="row-prev ${i === prevDays.length - 1 ? 'row-prev-last' : ''}"><th scope="row" class="date ${cls}">${c.month}/${c.day}</th><td class="dow ${cls}">${c.dowLabel}</td>${cells}<td colspan="${dcols.length + 2}" class="prev-note">前月</td></tr>`;
       })
       .join('');
 
@@ -601,7 +601,7 @@
         ${toolbar}${status}${missing ? `<div class="notice warn"><strong>前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
           <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
           前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。</div>` : ''}${preNotice}${summary}${checks}
-        <p class="hint">いちばん上の「前月」の行は、前月末の勤務です（月をまたぐ連勤・宿直明けの判定に使います）。<br>「前月のExcelを読み込む」で前月の勤務表から取り込むのが確実です。<br>前月のExcelがない場合は、各マスで勤務を選んで入力してください。<br>右側はその日に必要な体制です。<br>平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。<br>決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。<br>「希望休」は、できるだけ休みにします。<br>「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。<br>生成後にマスを選び直すと、その勤務で固定され、条件を確認し直します。</p>
+        <p class="hint">いちばん上の前月の行は、前月末の勤務です（月をまたぐ連勤・宿直明けの判定に使います）。<br>「前月のExcelを読み込む」で前月の勤務表から取り込むのが確実です。<br>前月のExcelがない場合は、各マスで勤務を選んで入力してください。<br>右側はその日に必要な体制です。<br>平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。<br>決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。<br>「希望休」は、できるだけ休みにします。<br>「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。<br>生成後にマスを選び直すと、その勤務で固定され、条件を確認し直します。</p>
         <div class="legend" aria-label="表の見かた">
           <span class="lg"><span class="sw sw-hard"></span>必ず守る条件の違反</span>
           <span class="lg"><span class="sw sw-soft"></span>できるだけ避けたい点</span>

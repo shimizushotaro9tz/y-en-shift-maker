@@ -514,7 +514,7 @@
         let prevIn = 0;
         for (let s = 0; s < S; s++) if (p.prevLast[s] >= 0 && p.night[p.prevLast[s]] === NIGHT.IN) prevIn++;
         if (prevIn !== outs)
-          issues.push(`1日の宿直明けは${outs}人の指定ですが、前月末日に宿直入りの職員は${prevIn}人です。表の「前月」の行（前月末日）を確認してください。`);
+          issues.push(`1日の宿直明けは${outs}人の指定ですが、前月末日に宿直入りの職員は${prevIn}人です。表の前月の行（前月末日）を確認してください。`);
       } else {
         const ins = sumNight(d - 1, NIGHT.IN);
         if (ins !== outs)
