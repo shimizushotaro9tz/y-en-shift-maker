@@ -376,7 +376,7 @@
           <label>職員が <input type="number" min="1" max="31" data-rule="baseStaff" data-type="number" value="${esc(r.baseStaff)}" class="w-num"> 名を超えたら、超えた人数分 <select data-rule="extraCode">${codeOpts(r.extraCode, demandShifts())}</select> を毎日1人ずつ増やす
             <span class="hint">休みの平均が下限を下回らない範囲で増やします${extraNote()}</span></label>
           <label>公休は1人あたり月 <input type="number" min="0" max="31" data-rule="maxOff" data-type="nullable" value="${r.maxOff === null ? '' : esc(r.maxOff)}" placeholder="上限なし" class="w-num"> 日まで <span class="hint">超えた休みは、生成時に有休にします</span></label>
-          <label>休み（公休＋有休）は月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 日以上 <span class="hint">上限はありません</span></label>
+          <label>休み（公休＋有休）は月 <input type="number" min="0" max="31" data-rule="minRest" data-type="number" value="${esc(r.minRest)}" class="w-num"> 日以上 <span class="hint">上限はありません。理想の日数は「できるだけ満たす希望」で設定</span></label>
           <label>連勤の上限 <input type="number" min="1" max="31" data-rule="maxConsecutive" data-type="number" value="${esc(r.maxConsecutive)}" class="w-num"> 連勤まで</label>
           <label>宿直の回数 1人あたり月 <input type="number" min="0" max="31" data-rule="minNights" data-type="nullable" value="${r.minNights === null ? '' : esc(r.minNights)}" placeholder="自動" class="w-num"> 〜 <input type="number" min="0" max="31" data-rule="maxNights" data-type="nullable" value="${r.maxNights === null ? '' : esc(r.maxNights)}" placeholder="自動" class="w-num"> 回
             <span class="hint">空欄＝自動：今月は宿直${auto.total}回 ÷ 宿直できる${auto.n}人 で <b>${auto.min === auto.max ? auto.min : auto.min + "〜" + auto.max}回</b></span></label>
@@ -396,6 +396,7 @@
           <li>休日の3人勤務は、4人体制では休みを確保できない場合と、3人勤務にすれば希望休をかなえられる場合だけ使う（希望休のほうを優先）</li>
           <li>DE→EA→DE のように、宿直明けの翌日にまた宿直に入る形を避ける（優先度：高）</li>
           <li>2連勤・3連勤を中心にする（4連勤は許容、1日だけの勤務と5連勤はできるだけ避ける）</li>
+          <li>休み（公休＋有休）は月 <input type="number" min="0" max="31" data-rule="idealRest" data-type="number" value="${esc(state.rules.idealRest)}" class="w-num"> 日以上を理想にする（下回るときも、必ず守る条件の下限までは許容）</li>
           <li>4連休までにする（5連休以上はできるだけ避ける）</li>
           <li>宿直と次の宿直の間隔をできるだけ空ける（目安：月の日数 ÷ 宿直回数。前月末の宿直も含めて数える）</li>
           <li>公休数（自動の職員）、各勤務の回数、休日の休みを職員間で均等にする</li>

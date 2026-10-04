@@ -36,6 +36,7 @@
     RUN: [0, 30, 0, 0, 5, 30], // 連勤の長さごとの罰点（1日だけの勤務・5連勤を避け、2〜3連勤を中心に）
     RUN_OVER: 30,
     LONG_REST: 15, // 5連休以上の1日あたり
+    REST_IDEAL: 40, // 休みが理想の日数に足りない1日あたり
     FAIR_NIGHT: 10,
     NIGHT_GAP: 4, // 宿直の間隔が目安より短いとき、足りない日数の2乗あたり
     THREE: 300, // 休日の3人勤務（やむを得ない場合だけ）
@@ -189,7 +190,8 @@
         baseStaff: 6, // 基本の職員数。これを超えた人数分、extraCode を毎日1人ずつ増やす
         extraCode: 'D',
         maxOff: 9, // 公休は1人あたりこの日数まで。超えた休みは有休にする
-        minRest: 8, // 休み（公休＋有休）の日数の下限（上限は設けない）
+        minRest: 8, // 休み（公休＋有休）の日数の下限（必ず守る。上限は設けない）
+        idealRest: 9, // 休みの理想の日数（できるだけ満たす）
         minNights: null, // null なら自動（宿直の総数 ÷ 宿直できる人数 の切り捨て〜切り上げ）
         maxNights: null,
         maxNightDiff: 1,
@@ -482,6 +484,7 @@
       names: state.staff.map((s) => s.name),
       night, work, off, leave, isDemand, role, plans, homeMask, homes,
       minRest: Math.max(0, Number(r.minRest) || 0),
+      idealRest: Math.max(0, Number(r.idealRest) || 0),
       dayType: cal.map((c) => (c.type === 'holiday' ? 1 : 0)),
       dayLabels: cal.map((c) => c.day + '日(' + c.dowLabel + ')'),
       fillerIdx, demand, locked, lockSource, wish, forbid,
@@ -719,6 +722,9 @@
     if (restDays < p.minRest) {
       c += W.HARD * (p.minRest - restDays);
       report('hard', -1, `休み（公休＋有休）が${restDays}日で、下限（${p.minRest}日）に足りません`);
+    } else if (restDays < p.idealRest) {
+      c += W.REST_IDEAL * (p.idealRest - restDays);
+      report('soft', -1, `休み（公休＋有休）が${restDays}日です（理想は${p.idealRest}日以上）`);
     }
 
     // 公休数
