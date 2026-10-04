@@ -244,7 +244,7 @@
     return `
       <section class="card">
         <h2>前月末の勤務（${first.month}/${first.day}〜${last.month}/${last.day}）</h2>
-        <p class="hint">月をまたぐ条件（宿直入りの翌日の宿直明け、連勤の上限、翌日に入れない組み合わせ、連休）の判定に使います。<b>まずは「前月のExcelを読み込む」で、前月にこのアプリでダウンロードした勤務表から取り込んでください。</b>前月のExcelがない場合は、下の表で勤務を選んで入力することもできます。なお、前月のシフトをこのアプリで作っていた場合は、月を次に進めたときに自動で入ります。前月末日に宿直入り（DE など）の職員は、1日が宿直明け（EA・EC など）になります。</p>
+        <p class="hint">月をまたぐ条件（宿直入りの翌日の宿直明け、連勤の上限、翌日に入れない組み合わせ、連休）の判定に使います。<b>まずは「前月のExcelを読み込む」で、前月にこのアプリでダウンロードした勤務表から取り込んでください。</b>前月のExcelがない場合は、下の表で勤務を選んで入力することもできます。月を切り替えると、前月の行は未入力に戻ります。前月末日に宿直入り（DE など）の職員は、1日が宿直明け（EA・EC など）になります。</p>
         <div class="table-wrap"><table class="sheet"><thead><tr><th>日</th><th>曜</th>${head}</tr></thead><tbody>${body}</tbody></table></div>
         <div class="btn-row">
           <label class="btn small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label>
@@ -617,21 +617,6 @@
       </section>`;
   }
 
-  // 作成済みの結果が新しい月の前月のものなら、その月末の勤務を「前月末の勤務」に写す
-  function copyResultToPrevTail(ny, nm) {
-    const res = state.result;
-    if (!res) return;
-    const prev = new Date(ny, nm - 2, 1);
-    if (res.year !== prev.getFullYear() || res.month !== prev.getMonth() + 1) return;
-    for (const st of state.staff) {
-      const row = res.grid[st.id];
-      if (!row) continue;
-      const tail = row.slice(-M.PREV_DAYS);
-      while (tail.length < M.PREV_DAYS) tail.unshift('');
-      st.prevTail = tail;
-    }
-  }
-
   // ルールで決まる宿直回数の範囲（職員ごとの指定がない場合）
   function nightRangeOfRules() {
     const a = M.nightRange(state), r = state.rules;
@@ -677,21 +662,25 @@
     return Object.values(state.requests).some((o) => Object.keys(o).length);
   }
 
-  // 月を切り替える。日付に結びついた設定（固定・希望休・日付ごとの人数・平日/休日の切り替え）は消す
+  // 月を切り替える。日付に結びついた入力（固定・希望休・日付ごとの人数・平日/休日の切り替え・前月末の勤務）は消す
   function changeMonth(y, m) {
     if (running || (y === state.year && m === state.month)) {
       render();
       return;
     }
-    const hasData = hasRequests() || Object.keys(state.dayTypeOverrides).length || Object.keys(state.demandOverrides).length;
-    if (hasData && !confirm('月を変更すると、この月の固定・希望休、日付ごとの人数、平日/休日の切り替えは消えます。よろしいですか。')) {
+    const hasData =
+      hasRequests() ||
+      Object.keys(state.dayTypeOverrides).length ||
+      Object.keys(state.demandOverrides).length ||
+      state.staff.some((st) => st.prevTail.some(Boolean));
+    if (hasData && !confirm('月を変更すると、この月の固定・希望休、前月末の勤務、日付ごとの人数、平日/休日の切り替えは消えます。よろしいですか。')) {
       render();
       return;
     }
     state.requests = {};
     state.dayTypeOverrides = {};
     state.demandOverrides = {};
-    copyResultToPrevTail(y, m);
+    for (const st of state.staff) st.prevTail = M.emptyTail(); // 前月の行は未入力に戻す
     state.year = y;
     state.month = m;
     mainStatus = null;
