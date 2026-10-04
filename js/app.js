@@ -12,6 +12,7 @@
   let currentTab = 'basic';
   let worker = null;
   let running = false;
+  let downloadedKey = null; // ダウンロードした時点の生成結果（変更されたら手順4に戻る）
   let mainStatus = null; // { kind: 'info'|'ok'|'warn'|'error', html }
 
   // ---------- 保存 ----------
@@ -578,9 +579,12 @@
       </div>`
         : '';
 
-    // 進み具合に合わせた説明：①前月の勤務 → ②体制・固定を入れて生成 → ③確認・Excelダウンロード
-    const stage = missing ? 1 : A ? 3 : 2;
-    const stepNames = ['前月の勤務', '体制・固定を入れて生成', '確認・Excelダウンロード'];
+    // 進み具合に合わせた手順と説明
+    //  1 前月末の勤務を読み込む → 2 既に確定している勤務と人数構成を入力する → 3 シフトを生成する
+    //  → 4 結果を確認する → 5 Excelをダウンロードする
+    const downloaded = !!A && downloadedKey === resultKey();
+    const stage = missing ? 1 : running ? 3 : !A ? 2 : downloaded ? 6 : 4; // 6 = すべて完了
+    const stepNames = ['前月末の勤務を読み込む', '既に確定している勤務と人数構成を入力する', 'シフトを生成する', '結果を確認する', 'Excelをダウンロードする'];
     const steps = `<ol class="steps">${stepNames
       .map((name, i) => `<li class="${i + 1 < stage ? 'done' : i + 1 === stage ? 'current' : ''}"><span class="no">${i + 1 < stage ? '✓' : i + 1}</span>${name}</li>`)
       .join('')}</ol>`;
@@ -588,20 +592,27 @@
     if (stage === 1)
       guideBody = `<strong>月をまたぐ連勤や宿直明けを判定するために、前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
           <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
-          前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。`;
+          前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると次の手順に進みます。`;
     else if (stage === 2)
       guideBody = [
         '表の右側の数字は、その日に必要な体制（勤務ごとの人数）です。平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。',
-        '決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。',
+        '既に決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。',
         '休みの希望は、マスのプルダウンで「希望休」を選んでください。できるだけ休みにします。',
-        '準備ができたら「シフト生成」を押してください。残りのマスを条件に合わせて埋めます。',
+        '<strong>入力が済んだら（変更がなければそのまま）、「シフト生成」を押してください。</strong>残りのマスを条件に合わせて埋めます。',
       ].join('<br>');
-    else
+    else if (stage === 3) guideBody = 'シフトを生成しています。条件をすべて満たす案が見つかるまで、しばらくお待ちください。';
+    else if (stage === 4 && hard.length)
       guideBody = [
-        'マスの勤務は変更可能です。変更したマスはその勤務で固定されます（🔒）。',
-        '変更すると条件を確認し直します。',
-        '問題なければ右上のExcelダウンロードを押してください。',
+        '<strong>必ず守る条件の違反があります。</strong>上の一覧と、表の赤枠のマスを確認してください。',
+        'マスの勤務を変更するか、固定や右側の人数を見直してから、もう一度「シフト生成」を押してください。',
       ].join('<br>');
+    else if (stage === 4)
+      guideBody = [
+        '結果を確認してください。' + (soft.length ? '上の一覧に、できるだけ避けたい点が出ています。' : ''),
+        'マスの勤務は変更できます。変更したマスはその勤務で固定され（🔒）、条件を確認し直します。',
+        '<strong>問題なければ、右上の「Excelダウンロード」を押してください。</strong>',
+      ].join('<br>');
+    else guideBody = ['Excelをダウンロードしました。', 'このあとマスの勤務を変更した場合は、もう一度ダウンロードしてください。'].join('<br>');
     const guide = `<div class="guide stage${stage}">${steps}<div class="guide-body">${guideBody}</div></div>`;
 
     return `
@@ -654,6 +665,11 @@
     let n = 0;
     for (const st of state.staff) for (let j = M.PREV_DAYS - need; j < M.PREV_DAYS; j++) if (!st.prevTail[j]) n++;
     return n;
+  }
+
+  // 生成結果の内容を表す文字列（ダウンロード後に変更されたかの判定に使う）
+  function resultKey() {
+    return state.result ? JSON.stringify([state.year, state.month, state.staff.map((st) => st.name), state.result.grid]) : '';
   }
 
   // 職員の人数が変わると前回の生成結果は使えないので消す（固定・希望休は残す）
@@ -802,6 +818,8 @@
     try {
       const blob = await window.ShiftExcel.build(state, p, A, ev);
       downloadBlob(blob, `勤務表_${state.year}年${state.month}月.xlsx`);
+      downloadedKey = resultKey();
+      render();
     } catch (e) {
       console.error(e);
       alert('Excelファイルを作成できませんでした。');

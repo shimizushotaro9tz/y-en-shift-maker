@@ -280,3 +280,4 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .guide .steps li.current { color: var(--text); font-weight: bold; }
 .guide .steps li.current .no { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide .steps li.done .no { background: #e7f5ec; border-color: #9fcfb0; color: var(--ok); }
+.guide.stage6 { border-color: #b9dfc6; background: var(--ok-bg); color: var(--ok); }
