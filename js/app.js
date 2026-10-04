@@ -586,17 +586,22 @@
       .join('')}</ol>`;
     let guideBody;
     if (stage === 1)
-      guideBody = `<strong>前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
+      guideBody = `<strong>月をまたぐ連勤や宿直明けを判定するために、前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
           <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
           前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。`;
     else if (stage === 2)
       guideBody = [
-        '平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。',
+        '表の右側の数字は、その日に必要な体制（勤務ごとの人数）です。平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。',
         '決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。',
-        '「希望休」は、できるだけ休みにします。',
-        '「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。',
+        '休みの希望は、マスのプルダウンで「希望休」を選んでください。できるだけ休みにします。',
+        '準備ができたら「シフト生成」を押してください。残りのマスを条件に合わせて埋めます。',
       ].join('<br>');
-    else guideBody = ['マスの勤務は変更可能です。', '変更すると条件を確認し直します。', '問題なければ右上のExcelダウンロードを押してください。'].join('<br>');
+    else
+      guideBody = [
+        'マスの勤務は変更可能です。変更したマスはその勤務で固定されます（🔒）。',
+        '変更すると条件を確認し直します。',
+        '問題なければ右上のExcelダウンロードを押してください。',
+      ].join('<br>');
     const guide = `<div class="guide stage${stage}">${steps}<div class="guide-body">${guideBody}</div></div>`;
 
     return `
