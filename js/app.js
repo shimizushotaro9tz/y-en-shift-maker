@@ -227,10 +227,10 @@
     return `
       <section class="card">
         <h2>前月末の勤務（${first.month}/${first.day}〜${last.month}/${last.day}）</h2>
-        <p class="hint">月をまたぐ条件（宿直入りの翌日の宿直明け、連勤の上限、翌日に入れない組み合わせ、連休）の判定に使います。<b>まずは「前月のExcelを読み込む」で、前月にこのアプリでダウンロードした勤務表から取り込んでください。</b>前月のExcelがない場合は、下の表で勤務を選んで入力することもできます。月を切り替えると、前月の行は未入力に戻ります。前月末日に宿直入り（DE など）の職員は、1日が宿直明け（EA・EC など）になります。</p>
+        <p class="hint">月をまたぐ条件（宿直入りの翌日の宿直明け、連勤の上限、翌日に入れない組み合わせ、連休）の判定に使います。<b>まずは「前月のExcelを読み込む」で、前月にこのアプリでダウンロードした勤務表から取り込んでください。</b><span class="caution">個人情報が入った施設の勤務表は読み込まないでください。</span>前月のExcelがない場合は、下の表で勤務を選んで入力することもできます。月を切り替えると、前月の行は未入力に戻ります。前月末日に宿直入り（DE など）の職員は、1日が宿直明け（EA・EC など）になります。</p>
         <div class="table-wrap"><table class="sheet"><thead><tr><th>日</th><th>曜</th>${head}</tr></thead><tbody>${body}</tbody></table></div>
         <div class="btn-row">
-          <label class="btn small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label>
+          <label class="btn small" title="このアプリでダウンロードしたExcelを選んでください（個人情報が入った施設の勤務表は読み込まないでください）">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label>
           <button type="button" class="btn danger small" data-action="clear-prev">前月末の勤務をすべて消す</button>
         </div>
       </section>`;
@@ -427,6 +427,7 @@
     const missing = missingPrevCount();
     const prevDays = M.prevMonthDays(state).slice(M.PREV_DAYS - prevRequiredDays());
     const pd0 = prevDays[0], pd1 = prevDays[prevDays.length - 1];
+    const prevYM = { y: new Date(state.year, state.month - 2, 1).getFullYear(), m: pd1.month };
 
     const toolbar = `
       <div class="main-bar">
@@ -444,7 +445,7 @@
           <button type="button" class="btn primary" data-action="generate" ${running || errs.length || missing ? 'disabled' : ''} title="${missing ? '前月末の勤務をすべて入力してください' : ''}">${running ? '生成中…' : 'シフト生成'}</button>
           ${running ? '<button type="button" class="btn" data-action="cancel">中止</button>' : ''}
           <button type="button" class="btn" data-action="download" ${canDownload ? '' : 'disabled'} title="${A && hard.length ? '必ず守る条件の違反があるため、ダウンロードできません' : ''}">Excelダウンロード</button>
-          ${running ? '' : '<label class="btn small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label>'}
+          ${running ? '' : '<label class="btn small" title="このアプリでダウンロードしたExcelを選んでください（個人情報が入った施設の勤務表は読み込まないでください）">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label>'}
           <button type="button" class="btn small" data-action="clear-requests" ${hasRequests() && !running ? '' : 'disabled'}>固定をすべて解除</button>
           <button type="button" class="btn small" data-action="clear-result" ${state.result && !running ? '' : 'disabled'}>生成結果を消す</button>
         </div>
@@ -605,6 +606,7 @@
     if (stage === 1)
       guideBody = `<strong>月をまたぐ連勤や宿直明けを判定するために、前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
           <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
+          <div class="caution">※ 個人情報が入った施設の勤務表は読み込まないでください。このアプリでダウンロードしたExcel（勤務表_${prevYM.y}年${prevYM.m}月.xlsx）だけを選んでください。</div>
           前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると次の手順に進みます。`;
     else if (stage === 2)
       guideBody = [

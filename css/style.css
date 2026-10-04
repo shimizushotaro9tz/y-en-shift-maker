@@ -296,3 +296,5 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .legend label.ake-ctl { cursor: pointer; color: var(--text); }
 .legend label.ake-ctl input { margin: 0; }
 .legend .ake-ctl .ake-n { margin-left: 6px; font-size: 12px; color: var(--muted); }
+.caution { color: var(--error); font-weight: bold; }
+div.caution { margin: 0 0 4px; font-size: 13px; }
