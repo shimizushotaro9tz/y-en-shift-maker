@@ -625,7 +625,12 @@
         'マスの勤務は変更できます。変更したマスはその勤務で固定され（🔒）、条件を確認し直します。',
         '<strong>問題なければ、右上の「Excelダウンロード」を押してください。</strong>',
       ].join('<br>');
-    else guideBody = ['Excelをダウンロードしました。', 'このあとマスの勤務を変更した場合は、もう一度ダウンロードしてください。'].join('<br>');
+    else
+      guideBody = [
+        '<strong>Excelをダウンロードしました。ダウンロードしたExcelを開いて、勤務の記号を施設の勤務表にコピーしてください。</strong>',
+        'コピーするときは、仮名（職員A1 など）の列が、勤務表のどの職員にあたるかを確かめてください。',
+        'このあとマスの勤務を変更した場合は、もう一度ダウンロードしてください。',
+      ].join('<br>');
     const guide = `<div class="guide stage${stage}">${steps}<div class="guide-body">${guideBody}</div></div>`;
 
     return `
