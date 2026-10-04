@@ -2,7 +2,10 @@
 (function () {
   'use strict';
   const M = window.ShiftModel;
-  const STORAGE_KEY = 'y-shift-maker.v1';
+  const STORAGE_KEY = 'y-shift-maker.v1'; // 設定（ブラウザに残す）
+  const SESSION_KEY = 'y-shift-maker.month.v1'; // その月の入力（タブを閉じると消える）
+  // その月の入力として扱う項目（前月末の勤務 staff[].prevTail もこちら）
+  const MONTH_KEYS = ['year', 'month', 'requests', 'result', 'demandOverrides', 'dayTypeOverrides'];
 
   let state = load();
   let view = 'main'; // 'main'（シフト表）| 'settings'（設定）
@@ -12,20 +15,58 @@
   let mainStatus = null; // { kind: 'info'|'ok'|'warn'|'error', html }
 
   // ---------- 保存 ----------
-  function load() {
+  // 設定（職員の仮名・担当ホーム、勤務区分、基本の人数、3人勤務、ルール）は localStorage に残す。
+  // その月の入力（年月、固定・希望休、前月末の勤務、日付ごとの人数、平日/休日の切り替え、生成結果）は
+  // sessionStorage に置き、タブを閉じると消える（入力履歴をブラウザに残さない）
+  function readJson(storage, key) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return M.normalizeState(JSON.parse(raw));
+      const raw = storage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
     } catch (e) {
-      /* 読めない場合は初期値 */
+      return null;
     }
-    return M.defaultState();
   }
+
+  function load() {
+    const settings = readJson(localStorage, STORAGE_KEY);
+    const month = readJson(sessionStorage, SESSION_KEY);
+    const merged = Object.assign({}, settings || {});
+    // 以前の版で localStorage に残っていた月ごとの入力は使わない（このあとの save で取り除く）
+    for (const k of MONTH_KEYS) delete merged[k];
+    if (merged.staff) merged.staff = merged.staff.map((st) => Object.assign({}, st, { prevTail: undefined }));
+    if (month) {
+      for (const k of MONTH_KEYS) if (month[k] !== undefined) merged[k] = month[k];
+      if (merged.staff && month.prevTails) merged.staff.forEach((st) => (st.prevTail = month.prevTails[st.id]));
+    }
+    const st = settings || month ? M.normalizeState(Object.assign({ version: (settings && settings.version) || M.VERSION }, merged)) : M.defaultState();
+    if (!month) {
+      // 新しいタブでは、作成する月は来月から
+      const d = M.defaultState();
+      st.year = d.year;
+      st.month = d.month;
+    }
+    return st;
+  }
+
   function save() {
+    const settings = {}, month = { prevTails: {} };
+    for (const k in state) if (!MONTH_KEYS.includes(k)) settings[k] = state[k];
+    for (const k of MONTH_KEYS) month[k] = state[k];
+    settings.staff = state.staff.map((st) => {
+      month.prevTails[st.id] = st.prevTail;
+      const c = Object.assign({}, st);
+      delete c.prevTail;
+      return c;
+    });
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {
       /* 保存できない環境でも動作は続ける */
+    }
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(month));
+    } catch (e) {
+      /* 同上 */
     }
   }
   function commit() {
@@ -104,6 +145,8 @@
     const scroller = viewEl.querySelector('.table-wrap.tall');
     const keep = scroller ? [scroller.scrollTop, scroller.scrollLeft] : null;
     viewEl.innerHTML = fn(errs);
+    // ブラウザが入力候補として文字を覚えないようにする
+    viewEl.querySelectorAll('input').forEach((el) => el.setAttribute('autocomplete', 'off'));
     const ns = viewEl.querySelector('.table-wrap.tall');
     if (keep && ns) [ns.scrollTop, ns.scrollLeft] = keep;
   }
@@ -137,7 +180,7 @@
       </section>
       <section class="card">
         <h2>設定データ</h2>
-        <p class="hint">設定はこのブラウザ内にだけ保存され、外部には送信されません。別のパソコンで使う場合や控えを残す場合は、ファイルに書き出してください。</p>
+        <p class="hint">設定（職員の仮名・担当ホーム、勤務区分、必要人数、ルール）はこのブラウザに保存され、外部には送信されません。その月の入力（固定・希望休、前月末の勤務、日付ごとの人数、生成結果）は、このタブを閉じると消えます。別のパソコンで使う場合や控えを残す場合は、ファイルに書き出してください。</p>
         <div class="btn-row">
           <button type="button" class="btn" data-action="export-json">設定をファイルに書き出す</button>
           <label class="btn">設定ファイルを読み込む<input type="file" accept=".json,application/json" data-action="import-json" hidden></label>
@@ -557,7 +600,7 @@
       <section class="card">
         ${toolbar}${status}${missing ? `<div class="notice warn"><strong>前月末（${pd0.month}/${pd0.day}〜${pd1.month}/${pd1.day}）の勤務が必要です。まずは前月にこのアプリでダウンロードしたExcelを読み込んでください。</strong>
           <div class="btn-row" style="margin:6px 0"><label class="btn primary small">前月のExcelを読み込む<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-action="import-prev" hidden></label></div>
-          前月のExcelがない場合は、表のいちばん上の「前月」の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。</div>` : ''}${preNotice}${summary}${checks}
+          前月のExcelがない場合は、表のいちばん上の前月の行に、勤務を1マスずつ入力することもできます（未入力 ${missing} マス）。すべて埋まると「シフト生成」を押せます。</div>` : ''}${preNotice}${summary}${checks}
         <p class="hint">いちばん上の「前月」の行は、前月末の勤務です（月をまたぐ連勤・宿直明けの判定に使います）。「前月のExcelを読み込む」で前月の勤務表から取り込むのが確実です。前月のExcelがない場合は、各マスで勤務を選んで入力してください。右側はその日に必要な体制です。平日・休日の基本の人数が入っているので、会議などで変わる日だけ書き換えてください（変更したマスは黄色）。決まっている勤務は、マスのプルダウンで選んで固定してください（🔒）。「希望休」は、できるだけ休みにします。「シフト生成」を押すと、残りのマスを条件に合わせて埋めます。生成後にマスを選び直すと、その勤務で固定され、条件を確認し直します。</p>
         <div class="legend" aria-label="表の見かた">
           <span class="lg"><span class="sw sw-hard"></span>必ず守る条件の違反</span>
@@ -1079,5 +1122,6 @@
 
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
+  save(); // 以前の版で localStorage に残っていた月ごとの入力を取り除く
   render();
 })();
