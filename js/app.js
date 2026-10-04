@@ -5,7 +5,7 @@
   const STORAGE_KEY = 'y-shift-maker.v1'; // 設定（ブラウザに残す）
   const OLD_SESSION_KEY = 'y-shift-maker.month.v1'; // 以前の版で使っていた、その月の入力の保存先
   // その月の入力として扱う項目（前月末の勤務 staff[].prevTail もこちら）。保存せず、再読み込みで初期化する
-  const MONTH_KEYS = ['year', 'month', 'requests', 'result', 'demandOverrides', 'dayTypeOverrides', 'akeKo'];
+  const MONTH_KEYS = ['year', 'month', 'requests', 'result', 'demandOverrides', 'dayTypeOverrides'];
 
   let state = load();
   let view = 'main'; // 'main'（シフト表）| 'settings'（設定）
@@ -695,16 +695,15 @@
     return `（職員が${state.staff.length}名なので、休みを${esc(state.rules.idealRest)}日以上確保できる日に、${esc(ex.code)}を最大${ex.n}人追加します。追加した日は右側の${esc(ex.code)}の欄に「+1」と表示します）`;
   }
 
-  // 明け公（E公）の日数を増減する小さな操作（凡例の行の右端に置く）
+  // 「明け公（E公）をできるだけ増やす」の切り替え（凡例の行の右端に置く）。生成後は今月の日数も表示する
   function akeControl() {
     const ake = state.shifts.find((x) => x.night === 'out' && x.off && !x.work);
     if (!ake) return '';
-    const n = Number(state.akeKo) || 0;
-    const tip = `宿直明けの人を、その日は勤務にせず公休（${ake.code}）にする日数です。どの日にするかは生成時に選びます。代わりに朝の勤務（平日はA、休日はC）を1人増やします。`;
-    return `<span class="ake-ctl" title="${esc(tip)}">明け公（${esc(ake.code)}）
-      <button type="button" class="icon-btn" data-action="ake-dec" aria-label="明け公を減らす" ${n <= 0 || running ? 'disabled' : ''}>－</button>
-      <b>${n}</b>日
-      <button type="button" class="icon-btn" data-action="ake-inc" aria-label="明け公を増やす" ${running ? 'disabled' : ''}>＋</button></span>`;
+    const p = M.validateSettings(state).length ? null : M.compile(state);
+    const A = p && M.gridToMatrix(state, p);
+    const n = A ? A.reduce((a, row) => a + row.filter((k) => k === p.akeIdx).length, 0) : null;
+    const tip = `宿直明けの人を、その日は勤務にせず公休（${ake.code}）にします。人数を変えていない日に、できるだけ多く入れます。代わりに朝の勤務（平日はA、休日はC）を1人増やすので、働く人数と休みの合計は変わりません。`;
+    return `<label class="ake-ctl" title="${esc(tip)}"><input type="checkbox" data-ake-max ${state.rules.akeMax ? 'checked' : ''} ${running ? 'disabled' : ''}> 明け公（${esc(ake.code)}）をできるだけ増やす${n !== null ? `<span class="ake-n">今月 ${n}日</span>` : ''}</label>`;
   }
 
   // 職員の人数が変わると前回の生成結果は使えないので消す（固定・希望休は残す）
@@ -737,7 +736,6 @@
     state.dayTypeOverrides = {};
     state.demandOverrides = {};
     for (const st of state.staff) st.prevTail = M.emptyTail(); // 前月の行は未入力に戻す
-    state.akeKo = 0;
     state.year = y;
     state.month = m;
     mainStatus = null;
@@ -1018,10 +1016,6 @@
       case 'three-del':
         state.threePerson.plans.splice(i, 1);
         break;
-      case 'ake-inc':
-      case 'ake-dec':
-        state.akeKo = Math.max(0, (Number(state.akeKo) || 0) + (btn.dataset.action === 'ake-inc' ? 1 : -1));
-        break;
       case 'reset-day-demand':
         delete state.demandOverrides[btn.dataset.day];
         break;
@@ -1089,6 +1083,11 @@
     if (d.action === 'import-json') {
       if (t.files[0]) importJson(t.files[0]);
       t.value = '';
+      return;
+    }
+    if (t.hasAttribute('data-ake-max')) {
+      state.rules.akeMax = t.checked;
+      commit();
       return;
     }
     if (t.hasAttribute('data-add-dem-col')) {

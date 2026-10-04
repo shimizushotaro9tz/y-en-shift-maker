@@ -293,3 +293,6 @@ ul.pairs li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; mar
 .legend .ake-ctl .icon-btn { width: 24px; height: 24px; font-size: 14px; }
 .sheet.main td.dem.minus { position: relative; background: #f3f0fa; }
 .sheet.main td.dem .plus-badge.minus { color: #5b4a99; }
+.legend label.ake-ctl { cursor: pointer; color: var(--text); }
+.legend label.ake-ctl input { margin: 0; }
+.legend .ake-ctl .ake-n { margin-left: 6px; font-size: 12px; color: var(--muted); }

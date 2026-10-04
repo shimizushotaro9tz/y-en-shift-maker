@@ -40,7 +40,7 @@
     FAIR_NIGHT: 10,
     NIGHT_GAP: 4, // 宿直の間隔が目安より短いとき、足りない日数の2乗あたり
     THREE: 300, // 休日の3人勤務（やむを得ない場合だけ）
-    AKE: 200, // 明け公（E公）の日数が指定と違う1日あたり
+    AKE: 200, // 「明け公をできるだけ増やす」とき、E公 にしなかった宿直明け1回あたり（希望休よりは下）
     EXTRA_MISS: 35, // 職員が多い月に、追加してよい勤務（D）を追加しなかった1人・1日あたり（休みの理想 REST_IDEAL より小さくする）
     NIGHT_GAP2: 80, // 中1日の宿直（DE→EA→DE のように、明けの翌日にまた宿直入り）。優先度高め
     FAIR_CODE: 3,
@@ -184,7 +184,6 @@
         holiday: { EC: 1, C: 1, D: 1, DE: 1 },
       },
       demandOverrides: {}, // demandOverrides[day][code] = 人数（その日だけの変更）
-      akeKo: 0, // その月に入れる明け公（E公）の日数
       extraDemandCols: [], // シフト表の右側の人数欄に、基本の人数が0でも表示する勤務
       // 休日の3人勤務（休みを確保できない場合だけ使う体制）
       threePerson: { enabled: true, plans: defaultThreePlans() },
@@ -202,6 +201,7 @@
         forbiddenPairs: [{ from: 'D', to: 'C' }],
         fillerCode: '公',
         timeLimitSec: 15,
+        akeMax: false, // 明け公（E公）をできるだけ増やす
       },
       dayTypeOverrides: {},
       requests: {}, // requests[staffId][day] = 'wish:公' | 'fix:A'
@@ -366,7 +366,7 @@
     const ex = extraDemand(state);
     const extraIdx = ex.n > 0 ? idx(ex.code) : -1;
     // 明け公（E公）：宿直明けで公休になる区分と、代わりに入る朝の勤務（宿直明けの勤務と同じ役割）
-    const akeN = Math.max(0, Number(state.akeKo) || 0);
+    const akeN = r.akeMax ? D : 0; // できるだけ増やす＝全日を目標にする
     const akeIdx = state.shifts.findIndex((x) => x.night === 'out' && x.off && !x.work);
     const replaceIdx = state.shifts.map((x) =>
       x.night === 'out' && x.work && x.role !== 'none' ? state.shifts.findIndex((y) => y.night === 'none' && y.work && y.role === x.role) : -1
@@ -905,15 +905,12 @@
   }
 
   // 職員どうしの比較：宿直回数の差（必ず守る）、公休数のばらつき（公休数を指定していない職員どうし）、
-  // 明け公（E公）の日数（指定した日数に近づける）
+  // 明け公（E公）の日数（「できるだけ増やす」ときは多いほどよい）
   function globalCost(p, nights, offs, akes, out) {
     let c = 0;
     if (p.akeN > 0) {
       const total = akes.reduce((a, b) => a + b, 0);
-      if (total !== p.akeN) {
-        c += W.AKE * Math.abs(total - p.akeN);
-        out && out.push({ level: 'soft', staff: -1, day: -1, msg: `明け公（E公）が${total}日です（指定：${p.akeN}日）` });
-      }
+      c += W.AKE * Math.max(0, p.akeN - total);
     }
     let sum = 0, n = 0;
     for (let s = 0; s < p.S; s++)
