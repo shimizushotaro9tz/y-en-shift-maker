@@ -1111,6 +1111,18 @@
 
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
+  // その月の入力は保存しないので、入力があるときは再読み込みやタブを閉じる前にブラウザの確認を出す
+  window.addEventListener('beforeunload', (e) => {
+    const hasInput =
+      state.result ||
+      hasRequests() ||
+      Object.keys(state.demandOverrides).length ||
+      Object.keys(state.dayTypeOverrides).length ||
+      state.staff.some((st) => st.prevTail.some(Boolean));
+    if (!hasInput) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
   save(); // 以前の版で localStorage に残っていた月ごとの入力を取り除く
   render();
 })();
